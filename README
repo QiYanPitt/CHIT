@@ -1,0 +1,174 @@
+### Generate impute2 format SNPs from vcf ###
+ls ./plink
+> chr1.imputed_HighCertainty_QC.vcf.gz ... chr22.imputed_HighCertainty_QC.vcf.gz
+
+### Delete duplicate SNPs ###
+cd ./plink
+for i in {1..22}; do
+  gunzip chr${i}.imputed_HighCertainty_QC.vcf.gz
+  cut -d$'\t' -f 2 chr${i}.imputed_HighCertainty_QC.vcf | sort | uniq -c | sed "/   1/d" | sed "s/^ \+//g" | cut -d " " -f 2 > del${i}
+  gawk 'BEGIN{FS=OFS="\t"}ARGIND==1{a[$1]=1}ARGIND==2{if(!a[$2]){print $0}}' del${i} chr${i}.imputed_HighCertainty_QC.vcf > tmp${i}
+  mv tmp${i} chr${i}.imputed_HighCertainty_QC.vcf
+  rm del${i}
+  gzip chr${i}.imputed_HighCertainty_QC.vcf
+done
+cd ..
+
+mkdir gen phased
+for i in {1..22}; do
+  perl vcf2impute_gen.pl -vcf ./plink/chr$i.imputed_HighCertainty_QC.vcf.gz -gen ./gen/chr$i.imputed_HighCertainty_QC.impute2 &
+  perl vcf2impute_lengend_haps.pl -vcf ./plink/chr$i.imputed_HighCertainty_QC.vcf.gz -chr $i -leghap ./phased/chr$i.imputed_HighCertainty_QC &
+done
+
+for i in {1..22}; do
+  gunzip ./phased/chr$i.imputed_HighCertainty_QC.hap.gz ./phased/chr$i.imputed_HighCertainty_QC.legend.gz
+  sed -i 1d ./phased/chr$i.imputed_HighCertainty_QC.legend
+  sed -i "s/^${i}/${i} ${i}/g" ./phased/chr$i.imputed_HighCertainty_QC.legend
+  paste -d " " ./phased/chr$i.imputed_HighCertainty_QC.legend ./phased/chr$i.imputed_HighCertainty_QC.hap > ./phased/chr$i.imputed_HighCertainty_QC.impute2_haps
+  gzip ./phased/chr$i.imputed_HighCertainty_QC.impute2_haps
+  rm ./phased/chr$i.imputed_HighCertainty_QC.legend
+  rm ./phased/chr$i.imputed_HighCertainty_QC.sample_list
+  rm ./phased/chr$i.imputed_HighCertainty_QC.hap
+done
+
+### Generate the list of targe regions (e.g. genes) ###
+mkdir gene_location
+cd gene_location
+# genes.gtf.bed is after modification on /iGenomes/Homo_sapiens/UCSC/hg19/Annotation/Genes/genes.gtf that can be downloaded from UCSC
+sed -nr "/exon/p" genes.gtf.bed > tmp
+mv tmp genes.gtf.bed
+cut -d$'\t' -f 3,4,8 genes.gtf.bed | sort -k 3 -k 1 | uniq > genes.gtf.bed.s
+cut -d$'\t' -f 1,3,4,8 genes.gtf.bed | sort -k 4 -k 2 | uniq > genes.gtf.bed.2
+perl exon_list.pl genes.gtf.bed.s genes.gtf.input
+
+for i in {1..22}; do
+  sed -nr "/^chr${i}\t/p" genes.gtf.bed.2 > gene.loc.chr${i}.txt
+  gunzip  ../phased/chr${i}.imputed_HighCertainty_QC.impute2_haps.gz
+  perl snp2gene.pl ../phased/chr${i}.imputed_HighCertainty_QC.impute2_haps gene.loc.chr${i}.txt chr${i}.snp2gene.map &
+done
+for i in {1..22}; do
+  gzip ../phased/chr${i}.imputed_HighCertainty_QC.impute2_haps &
+  sed -i "s/XX/${i}/g" chr${i}.snp2gene.map
+  cut -d " " -f 1-7,10 chr${i}.snp2gene.map > chr${i}.snp2gene.map.trun
+done
+
+touch chrall.snp2gene.map.trun
+for i in {1..22}; do
+  cat chrall.snp2gene.map.trun chr${i}.snp2gene.map.trun > tmp
+  mv tmp chrall.snp2gene.map.trun
+  rm chr${i}.snp2gene.map chr${i}.snp2gene.map.trun gene.loc.chr${i}.txt
+done
+gawk 'BEGIN{FS=OFS=" "}ARGIND==1{a[$3]=$1" "$2}ARGIND==2{if(a[$8]){print $0,a[$8]}}' genes.gtf.input chrall.snp2gene.map.trun > genes.gtf.input2
+cut -d " " -f 1-7,9- genes.gtf.input2 > genes.gtf.wasp.input
+
+uniq genes.gtf.wasp.input > tmp
+mv tmp genes.gtf.wasp.input
+sed "s/^chr//g" genes.gtf.wasp.input > tmp
+awk -F " " '{close(f);f=$1}{print > "genes.gtf.wasp.input."f}' tmp
+rm tmp
+cd ..
+
+
+######################################
+###### Preprocessing using WASP ######
+######################################
+
+### Convert impute format genotype files to H5 format ###
+cut -d "_" -f 2 ./gen/chr1.imputed_HighCertainty_QC.impute2.samples > geno_sample.lst
+mkdir results
+# WASP: allele-specific software for robust molecular quantitative trait locus discovery (PMID: 26366987)
+./WASP/snp2h5/snp2h5 --chrom chromInfo.hg19.txt \
+                 --format impute \
+                 --geno_prob ./results/geno_probs.h5 \
+                 --snp_index ./results/snp_index.h5 \
+                 --snp_tab ./results/snp_tab.h5 \
+                 --haplotype ./results/haps.h5 \
+                 --samples ./geno_sample.lst \
+                 ./gen/chr*.imputed_HighCertainty_QC.impute2.gz \
+                 ./phased/chr*.imputed_HighCertainty_QC.impute2_haps.gz
+
+### Switch alleles in reads based on SNP info, and remap ###
+#./bam includes all original bam files
+ls ./bam
+> 001-009.bam 001-414.bam 012-002.bam ...
+mkdir RNAseq
+for i in {0..16}; do
+  bash mapping_workflow.sh ./RNA_nasal_sample/RNA_nasal_sample.${i}.lst
+done
+
+### generate haplotype_read_counts.$INDIVIDUAL.txt ###
+mkdir ./RNAseq/haplotypes
+for i in {0..16}; do
+  nohup bash pretest.sh ./RNA_nasal_sample/RNA_nasal_sample.$i.lst &
+done
+for i in {0..16}; do
+  nohup bash pretest.all.sh ./RNA_nasal_sample/RNA_nasal_sample.$i.lst &
+done
+
+### overdispersion is calculated based on whole genome
+CHT_IN_FILE=./cht_input_file_atopy.txt
+### Estimate overdispersion parameters for allele-specific test (beta binomial)
+OUT_FILE=./RNAseq/cht_as_coef_atopy.txt
+python ./WASP/CHT/fit_as_coefficients.py $CHT_IN_FILE $OUT_FILE
+### Estimate overdispersion parameters for association test (beta-negative binomial)
+OUT_FILE=./RNAseq/cht_bnb_coef_atopy.txt
+nohup python ./WASP/CHT/fit_bnb_coefficients.py --min_counts 50 --min_as_counts 10 $CHT_IN_FILE $OUT_FILE &
+
+for i in {1..22}; do
+  sed "s/\.txt /.txt.$i /g" chit_input_file_atopy.txt > ./RNAseq/chit_input_file_atopy.txt.$i
+done
+
+
+######################################
+############# Run CHIT ###############
+######################################
+
+mkdir ./RNAseq/output
+bash run_chit.sh
+
+### find concordant results between different initial values ###
+touch chit_atopy_results.txt.all
+for i in {1..22}; do
+  cat chit_atopy_results.txt.all ./RNAseq/output/chit_atopy_results.txt.$i > tmp
+  mv tmp chit_atopy_results.txt.all
+done
+sed -i "/TEST.SNP.CHROM/d" chit_atopy_results.txt.all
+head -n 1 ./RNAseq/output/chit_atopy_results.txt.1 > ttt
+cat ttt chit_atopy_results.txt.all > ttt2
+mv ttt2 chit_atopy_results.txt.all
+rm ttt
+touch chit_atopy_results.rerun.txt.all
+for i in {1..22}; do
+  cat chit_atopy_results.rerun.txt.all ./RNAseq/output/chit_atopy_results.rerun.txt.$i > tmp
+  mv tmp chit_atopy_results.rerun.txt.all
+done
+sed -i "/TEST.SNP.CHROM/d" chit_atopy_results.rerun.txt.all
+head -n 1 ./RNAseq/output/chit_atopy_results.rerun.txt.1 > ttt
+cat ttt chit_atopy_results.rerun.txt.all > ttt2
+mv ttt2 chit_atopy_results.rerun.txt.all
+rm ttt
+cut -d$'\t' -f 1,2 chit_atopy_results.txt.all > tmp1
+cut -d$'\t' -f 1,2 chit_atopy_results.rerun.txt.all > tmp2
+diff tmp1 tmp2
+
+cd gene_location
+gawk 'BEGIN{FS=OFS=" "}ARGIND==1{a[$7" "$9" "$10]=$8}ARGIND==2{if(a[$7" "$8" "$9]){print $0,a[$7" "$8" "$9]}}' genes.gtf.input2 genes.gtf.wasp.input > genes.gtf.wasp.input.gene
+cd ..
+cut -d " " -f 1,2 ./gene_location/genes.gtf.wasp.input.gene | sed "s/ /\t/g" > tmp3
+diff tmp1 tmp3
+rm tmp1 tmp2 tmp3
+
+# in R
+x1=read.table("chit_atopy_results.txt.all",header=T)
+x2=read.table("chit_atopy_results.rerun.txt.all",header=T)
+gene=read.table("gene_location/genes.gtf.wasp.input.gene")[,10]
+x=cbind.data.frame(x1[,c(1,2,6)],x2[,6],gene)
+names(x)=c("TEST.SNP.CHROM","TEST.SNP.POS","P.VALUE.x","P.VALUE.y","GENE")
+x=x[(!is.na(x$P.VALUE.x) & !is.na(x$P.VALUE.y)),]
+x=x[(x$P.VALUE.x!=0 & x$P.VALUE.y!=0),]
+x$ratio = x$P.VALUE.x/x$P.VALUE.y
+y = x[(x$ratio<100 & x$ratio>0.01 ), ] #pvalues from two initial values need to be within 100 times in scale
+y$out = y$P.VALUE.x
+y$out[y$P.VALUE.x>y$P.VALUE.y] = y$P.VALUE.y[y$P.VALUE.x>y$P.VALUE.y]
+write.table(y, file="chit_atopy_results.concordant", row.names=F, col.names=T, quote=F)
+
