@@ -3,7 +3,7 @@
 ## Introduction
 The combined haplotype interaction test (CHIT) tests the association between gene expressions and phenotype-genotype interactions by modeling the total read counts and allele-specific reads in a target gene region. Each test is performed based on a test SNP-feature region pair that is defined by users. Thus, this method can test both cis- and trans-regulatory effect.
 
-The detailed pipeline is described in the README file, including:
+The detailed pipeline is described in the [README](./README) file, including:
 * Preprocess phased SNP files;
 * Generate SNP-gene pairs file;
 * Use both SNP and bam (e.g., RNA-seq) files to remap bam, done by WASP (WASP: allele-specific software for robust molecular quantitative trait locus discovery [PMID: 26366987]);
@@ -13,7 +13,7 @@ The detailed pipeline is described in the README file, including:
 * Get concordant results from different initial values.
 
 ## Dependencies
-The dependencies are the same as WASP that is described in ./WASP/README.md
+The dependencies are the same as WASP that is described in [./WASP/README.md] (./WASP/README.md)
 
 ## CHIT usage
     for i in {1..22}; do
