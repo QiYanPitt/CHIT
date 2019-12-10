@@ -11,3 +11,6 @@ The detailed pipeline is described in the README file, including:
 * Estimate overdispersion parameters, done by WASP;
 * Run CHIT;
 * Get concordant results from different initial values.
+
+## Dependencies
+The dependencies are the same as WASP that is described in ./WASP/README.md
