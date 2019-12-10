@@ -26,16 +26,16 @@ The dependencies are the same as WASP that is described in [./WASP/README.md](./
     done
 
 ## CHIT options
-    * "-a", "--as_only": only perform the allele-specific part (Beta Binomial) part of the test
-    * "-d", "--bnb_only": only perform the association (Beta Negative Binomial) part of the test
-    * "--cov_file": file containing covariates to include in the model
-    * "-b", "--bnb_disp": file containing depth (Beta Negative Binomial) dispersion parameters
-    * "-o", "--as_disp": file containing allele-specific (Beta Binomial) dispersion parameters
-    * "-s", "--shuffle": permute genotypes")
-    * "-m", "--min_as_counts": only perform test when total number of allele-specific read counts across individuals > MIN_COUNTS
-    * "-v", "--verbose": print extra information
-    * "--benchmark": write information about time test is takes, number of optimization functions, etc.
-    * "-i", "--initial": initial value for parameters alpha and beta
-    * "-r", "--seed": seed for random shuffle
-    * "infile_list"
-    * "out_file"
+    * "-a", "--as_only": only perform the allele-specific part (Beta Binomial) part of the test;
+    * "-d", "--bnb_only": only perform the association (Beta Negative Binomial) part of the test;
+    * "--cov_file": file containing covariates to include in the model;
+    * "-b", "--bnb_disp": file containing depth (Beta Negative Binomial) dispersion parameters;
+    * "-o", "--as_disp": file containing allele-specific (Beta Binomial) dispersion parameters;
+    * "-s", "--shuffle": permute genotypes;
+    * "-m", "--min_as_counts": only perform test when total number of allele-specific read counts across individuals > MIN_COUNTS;
+    * "-v", "--verbose": print extra information;
+    * "--benchmark": write information about time test is takes, number of optimization functions, etc.;
+    * "-i", "--initial": initial value for parameters alpha and beta;
+    * "-r", "--seed": seed for random shuffle;
+    * infile_list;
+    * out_file;
