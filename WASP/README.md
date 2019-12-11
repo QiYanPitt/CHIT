@@ -6,7 +6,7 @@ WASP is a suite of tools for unbiased allele-specific read mapping and
 discovery of molecular QTLs
 
 WASP is described in
-[our paper](http://biorxiv.org/content/early/2014/11/07/011221): van
+[their paper](http://biorxiv.org/content/early/2014/11/07/011221): van
 de Geijn B\*, McVicker G\*, Gilad Y, Pritchard JK. "WASP:
 allele-specific software for robust discovery of molecular
 quantitative trait loci"
